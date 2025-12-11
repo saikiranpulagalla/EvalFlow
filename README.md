@@ -284,21 +284,27 @@ Using asyncio, run evaluators simultaneously:
 Example:
 ```json
 {
-  "generated_response": "...",
-  "scores": {
-    "relevance": 8.5,
-    "completeness": 9,
-    "factual_accuracy": 8,
-    "latency_ms": 417,
-    "cost_usd": 0.00092
-  },
-  "notes": {
-    "hallucination_explanation": "...",
-    "relevance_explanation": "..."
+  "generated_response": "AI generated answer based on context and history",
+  "relevance_score": 9,
+  "completeness_score": 8,
+  "accuracy_score": 7,
+  "hallucinations": ["potential hallucination 1", "potential hallucination 2"],
+  "latency_ms": 2500.5,
+  "cost_usd": 0.00215,
+  "retrieved_context": [
+    {
+      "text": "Relevant context chunk...",
+      "source_url": "https://example.com/page",
+      "similarity_score": 0.92
+    }
+  ],
+  "prompt_used": "System: You are helpful assistant...\nHistory: ...\nContext: ...\nQuery: ...",
+  "explanations": {
+    "relevance_completeness": "Response addresses all aspects of the query with good detail",
+    "accuracy_hallucination": "No factual inconsistencies detected with provided context"
   }
 }
 ```
-
 ## 🧠 Why This Architecture?
 
 ### ✔ Designed for Real-Time Use

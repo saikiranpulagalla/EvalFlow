@@ -52,25 +52,74 @@ Below is the full evaluation pipeline (Mermaid diagram):
 
 ```mermaid
 flowchart TD
-    A[Input Files] --> B[Input Parser]
-    A1[conversation.json<br/>full chat history] --> B
-    A2[context.json<br/>vectors for one specific user message] --> B
-    B -->|Extract| C[Prompt Builder]
-    C -->|System prompt + History + Retrieved Context + Current User Query| D[LLM Generation]
-    D -->|Call fast model<br/>e.g. GPT-4o-mini / Groq / local| E[Generated Response]
-    D -->|Measure| F[Latency ms & Cost USD]
-    E --> G[Evaluation Layer<br/>Parallel / Async]
-    subgraph "Parallel Evaluations"
-        G1[Relevance & Completeness<br/>LLM-as-Judge<br/>1-10 score + explanation]
-        G2[Hallucination / Factual Accuracy<br/>Grounding check against context<br/>Optional: embedding similarity]
-        G3[Latency & Cost<br/>Already measured]
-    end
-    G --> G1 & G2 & G3
-    G1 & G2 & G3 --> H[Final Report JSON]
-    H --> I[Logging & Monitoring]
-    style A fill:#f0f0f0,stroke:#333
-    style H fill:#d4edda,stroke:#333
-    style G fill:#fff3cd,stroke:#333
+
+%% ---------- INPUTS ----------
+A1["conversation.json<br/><b>(Full Chat History)</b>"]
+A2["context.json<br/><b>(Retrieved Context Vectors)</b>"]
+
+A1 --> B
+A2 --> B
+
+%% ---------- EXTRACTION ----------
+B["🧩 <b>Extractor</b><br/>• Parse history<br/>• Select relevant turns<br/>• Match context chunks"]
+
+B --> C
+
+%% ---------- PROMPT BUILDING ----------
+C["🛠️ <b>Prompt Builder</b><br/>System Prompt + History + Retrieved Context + User Query"]
+
+C --> D
+
+%% ---------- LLM GENERATION ----------
+D["🧠 <b>LLM Generation</b><br/>Fast model (GPT-4o-mini / Gemini)"]
+
+D --> E
+D --> F
+
+%% ---------- OUTPUT ----------
+E["💬 <b>Generated Response</b>"]
+
+%% ---------- METRICS ----------
+F["⏱️💲 <b>Latency & Cost Measurement</b>"]
+
+%% ---------- EVALUATION LAYER ----------
+E --> G
+F --> G
+
+G["🧮 <b>Evaluation Layer</b><br/>(Runs in Parallel)"]
+
+subgraph "🔍 Evaluation Modules (Parallel)"
+    G1["📊 <b>Relevance & Completeness</b><br/>LLM-as-Judge (1–10 Score + Explanation)"]
+    G2["🔎 <b>Hallucination & Factual Accuracy</b><br/>Grounding Check vs Context"]
+    G3["📈 <b>Latency & Cost</b>"]
+end
+
+G --> G1
+G --> G2
+G --> G3
+
+G1 --> H
+G2 --> H
+G3 --> H
+
+%% ---------- FINAL REPORT ----------
+H["📦 <b>Final Structured JSON Report</b>"]
+
+
+%% ---------- STYLES ----------
+style A1 fill:#e8f4ff,stroke:#036
+style A2 fill:#e8f4ff,stroke:#036
+style B fill:#fffbe6,stroke:#b38f00
+style C fill:#f7f7f7,stroke:#444
+style D fill:#e4ffe4,stroke:#2d662d
+style E fill:#e4ffe4,stroke:#2d662d
+style F fill:#e4ffe4,stroke:#2d662d
+style G fill:#fff3cd,stroke:#8a6d3b
+style G1 fill:#fef9e7,stroke:#7d6608
+style G2 fill:#fef9e7,stroke:#7d6608
+style G3 fill:#fef9e7,stroke:#7d6608
+style H fill:#d4edda,stroke:#155724
+
 ```
 
 ## 🛠️ Tech Stack
@@ -79,11 +128,11 @@ flowchart TD
 - **FastAPI** → API for running evaluations
 - **uv** (Rust-based package manager) → super-fast dependency installation
 - **asyncio** → parallel evaluator execution
-- **OpenAI / Groq / Local model** → for response generation + judge LLM
-- **Ragas** (optional) → hallucination + grounding metrics
+- **Langchain - OpenAI / Gemini** → for response generation + judge LLM
+
 
 ### Frontend
-- **Streamlit UI** → Upload conversation.json + context.json, click "Evaluate", get results
+- **Streamlit UI** → Upload conversation.json + context.json, click "Run Evaluation", get results
 
 ### Other
 - **Pydantic** → strict data validation
@@ -117,7 +166,7 @@ source .venv/bin/activate
 
 ### 3. Install dependencies using uv
 ```bash
-uv sync
+uv pip install -r requirements.txt
 ```
 
 ### 4. Create environment variables
@@ -127,7 +176,7 @@ cp .env.example .env
 Add your API keys:
 ```
 OPENAI_API_KEY=your_key
-GROQ_API_KEY=optional
+GEMINI_API_KEY=optional
 MODEL_NAME=gpt-4o-mini
 ```
 
@@ -142,7 +191,7 @@ uvicorn app.main:app --host 127.0.0.1 --port 8000 --reload
 
 **Terminal 2 - Start Streamlit Frontend**
 ```bash
-streamlit run ui/app.py --server.port 8501
+streamlit run ui/app.py 
 ```
 
 Services will be available at:
@@ -265,7 +314,7 @@ We use asyncio for:
 Running them together reduces latency 40–60%.
 
 ### ✔ Cheap & Scalable
-Uses small judge models (GPT-4o-mini, Llama 3.1 8B)
+Uses small judge models (GPT-4o-mini, Gemini-2.0-flash)
 
 Only evaluates one message per request
 
@@ -313,3 +362,4 @@ Each layer is independently replaceable:
 ## 👨‍💻 Author
 **Saikiran Pulagalla**
 - GitHub: https://github.com/saikiranpulagalla
+

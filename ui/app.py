@@ -1,16 +1,25 @@
 import streamlit as st
-import httpx
 import json
 import sys
+import asyncio
+import os
 from pathlib import Path
 import pandas as pd
+
+# Handle asyncio in Streamlit (which runs in a thread)
+try:
+    import nest_asyncio
+    nest_asyncio.apply()
+except ImportError:
+    pass
 
 # Add parent directory to path to import from app package
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from app.json_cleaner import clean_json
-
-API_URL = "http://localhost:8000/evaluate"   # Change when deployed
+from app.models import InputData
+from app.utils import parse_jsons_from_objects, build_prompt, generate_response, embedder
+from app.evaluators import evaluate_relevance_completeness, evaluate_hallucination
 
 st.set_page_config(page_title="EvalFlow — LLM Evaluation", layout="wide")
 st.title("🚀 EvalFlow — LLM Evaluation Pipeline Tester")
@@ -172,14 +181,7 @@ if run_button:
             st.info("💡 Tip: Ensure files are valid JSON format (not binary or corrupted).")
             st.stop()
 
-    payload = {
-        "conversation": conversation_json,
-        "context_vectors": context_json,
-        "model_type": "openai" if provider == "OpenAI" else "gemini",
-        "model_name": selected_model
-    }
-
-    # ---- API Call ----
+    # ---- Direct Function Call (No API) ----
     progress_container = st.container()
     
     with progress_container:
@@ -191,33 +193,114 @@ if run_button:
             status_text.text("📂 Parsing JSON files...")
             progress_bar.progress(10, text="📂 Parsing JSON files... (10%)")
             
-            client = httpx.Client(timeout=50.0)   # long timeout for LLM processing
+            # Step 2: Prepare input data
+            status_text.text("⚙️ Preparing evaluation pipeline...")
+            progress_bar.progress(20, text="⚙️ Preparing evaluation pipeline... (20%)")
             
-            # Step 2: Send request
-            status_text.text("📡 Sending request to API...")
-            progress_bar.progress(20, text="📡 Sending request to API... (20%)")
+            # Create InputData object for direct function call
+            input_data = InputData(
+                conversation=conversation_json,
+                context_vectors=context_json,
+                model_type="openai" if provider == "OpenAI" else "gemini",
+                model_name=selected_model,
+                openai_api_key=openai_key if openai_key else None,
+                google_api_key=google_key if google_key else None
+            )
             
-            response = client.post(API_URL, json=payload)
-            client.close()
+            # Step 3: Set API keys in environment
+            status_text.text("🔐 Setting up API authentication...")
+            progress_bar.progress(30, text="🔐 Setting up API authentication... (30%)")
             
-            # Step 3: Check response
-            status_text.text("✔️ Received response from API...")
-            progress_bar.progress(30, text="✔️ Received response from API... (30%)")
+            if openai_key:
+                os.environ["OPENAI_API_KEY"] = openai_key
+            if google_key:
+                os.environ["GOOGLE_API_KEY"] = google_key
             
-            if response.status_code != 200:
-                st.error(f"❌ API Error [{response.status_code}]: {response.text}")
+            # Step 4: Process evaluation
+            status_text.text("📊 Running evaluation pipeline...")
+            progress_bar.progress(40, text="📊 Running evaluation pipeline... (40%)")
+            
+            # Parse JSONs
+            query, history, contexts, context_objects = parse_jsons_from_objects(
+                input_data.conversation, 
+                input_data.context_vectors
+            )
+            
+            if not query:
+                st.error("❌ No user query found in conversation JSON")
                 st.stop()
-
-            result = response.json()
             
-            # Step 4: Processing results
-            status_text.text("🔄 Processing results...")
-            progress_bar.progress(50, text="🔄 Processing results... (50%)")
+            # Step 5: Compute similarity scores
+            status_text.text("🎯 Computing context similarity...")
+            progress_bar.progress(50, text="🎯 Computing context similarity... (50%)")
             
-            # Step 5: Rendering report
+            query_emb = embedder.encode(query)
+            retrieved_context = []
+            for ctx_obj in context_objects:
+                ctx_text = ctx_obj.get('text', '')
+                ctx_emb = embedder.encode(ctx_text)
+                similarity = float((query_emb @ ctx_emb.T).item())
+                similarity = max(0, min(1, similarity))
+                
+                from app.models import ContextWithScore
+                retrieved_context.append(ContextWithScore(
+                    text=ctx_text,
+                    source_url=ctx_obj.get('source_url'),
+                    similarity_score=similarity
+                ))
+            
+            retrieved_context.sort(key=lambda x: x.similarity_score, reverse=True)
+            retrieved_context = retrieved_context[:3]
+            top_context_texts = [ctx.text for ctx in retrieved_context]
+            
+            # Step 6: Build prompt
+            status_text.text("✍️ Building evaluation prompt...")
+            progress_bar.progress(60, text="✍️ Building evaluation prompt... (60%)")
+            
+            prompt = build_prompt(query, history, top_context_texts)
+            
+            # Step 7: Generate response
+            status_text.text("🤖 Generating LLM response...")
+            progress_bar.progress(70, text="🤖 Generating LLM response... (70%)")
+            
+            generated_response, metrics = asyncio.run(
+                generate_response(prompt, model_type=input_data.model_type, model_name=selected_model)
+            )
+            
+            # Step 8: Evaluate response
+            status_text.text("📈 Evaluating response quality...")
+            progress_bar.progress(80, text="📈 Evaluating response quality... (80%)")
+            
+            (relevance, completeness, rel_exp), (accuracy, hallucinations, acc_exp) = asyncio.run(
+                asyncio.gather(
+                    evaluate_relevance_completeness(generated_response, query),
+                    evaluate_hallucination(generated_response, top_context_texts)
+                )
+            )
+            
+            # Step 9: Compile results
             status_text.text("🎨 Rendering evaluation report...")
-            progress_bar.progress(75, text="🎨 Rendering evaluation report... (75%)")
-
+            progress_bar.progress(90, text="🎨 Rendering evaluation report... (90%)")
+            
+            result = {
+                "generated_response": generated_response,
+                "relevance_score": relevance,
+                "completeness_score": completeness,
+                "accuracy_score": accuracy,
+                "hallucinations": hallucinations,
+                "latency_ms": metrics['latency'],
+                "cost_usd": metrics['cost'],
+                "retrieved_context": [
+                    {
+                        "text": ctx.text,
+                        "source_url": ctx.source_url,
+                        "similarity_score": ctx.similarity_score
+                    } for ctx in retrieved_context
+                ],
+                "prompt_used": prompt,
+                "explanations": {"relevance_completeness": rel_exp, "accuracy_hallucination": acc_exp}
+            }
+            
             st.success("✅ Evaluation Completed Successfully!")
             progress_bar.progress(100, text="✅ Complete! (100%)")
             

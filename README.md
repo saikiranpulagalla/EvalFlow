@@ -54,80 +54,67 @@ Below is the full evaluation pipeline (Mermaid diagram):
 flowchart TD
 
 %% ---------- INPUTS ----------
-A1["<b>conversation.json</b><br/><span style='font-size:14px'>Full Chat History</span>"]
-A2["<b>context.json</b><br/><span style='font-size:14px'>Retrieved Context Vectors</span>"]
-
+A1["<b>conversation.json</b><br/>Full Chat History"]
+A2["<b>context.json</b><br/>Retrieved Context Vectors"]
 A1 --> B
 A2 --> B
 
 %% ---------- EXTRACTION ----------
-B["🧩 <b style='font-size:18px'>Extractor</b><br/><span style='font-size:14px'>• Parse history<br/>• Select relevant turns<br/>• Match context chunks</span>"]
+B["🧩 <b>Extractor</b><br/>• Parse history<br/>• Select relevant turns<br/>• Match context chunks"]
 B --> C
 
 %% ---------- PROMPT BUILDING ----------
-C["🛠️ <b style='font-size:18px'>Prompt Builder</b><br/><span style='font-size:14px'>
-System Prompt + History + Retrieved Context + User Query</span>"]
+C["🛠️ <b>Prompt Builder</b><br/>System Prompt + History + Retrieved Context + User Query"]
 C --> D
 
 %% ---------- LLM GENERATION ----------
-D["🧠 <b style='font-size:18px'>LLM Generation</b><br/><span style='font-size:14px'>
-Fast Model (GPT‑4o‑mini / Gemini)</span>"]
+D["🧠 <b>LLM Generation</b><br/>Fast model (GPT‑4o‑mini / Gemini)"]
 D --> E
 D --> F
 
 %% ---------- OUTPUT ----------
-E["💬 <b style='font-size:18px'>Generated Response</b>"]
+E["💬 <b>Generated Response</b>"]
 
 %% ---------- METRICS ----------
-F["⏱️💲 <b style='font-size:18px'>Latency & Cost Measurement</b>"]
+F["⏱️💲 <b>Latency & Cost Measurement</b>"]
 
 %% ---------- EVALUATION LAYER ----------
 E --> G
 F --> G
-
-G["🧮 <b style='font-size:18px'>Evaluation Layer</b><br/><span style='font-size:14px'>
-(Parallel Execution)</span>"]
+G["🧮 <b>Evaluation Layer</b><br/>(Parallel Execution)"]
 
 subgraph "🔍 Evaluation Modules"
-    direction TB
-    G1["📊 <b>Relevance & Completeness</b><br/><span style='font-size:14px'>
-    LLM-as-Judge (1–10 + explanation)</span>"]
-
-    G2["🔎 <b>Hallucination & Accuracy</b><br/><span style='font-size:14px'>
-    Grounding check vs context</span>"]
-
-    G3["📈 <b>Latency & Cost</b><br/><span style='font-size:14px'>
-    (Measured directly)</span>"]
+    G1["📊 <b>Relevance & Completeness</b><br/>LLM‑as‑Judge (1–10 score + explanation)"]
+    G2["🔎 <b>Hallucination & Accuracy</b><br/>Grounding check vs context"]
+    G3["📈 <b>Latency & Cost</b><br/>Measured directly"]
 end
 
 G --> G1
 G --> G2
 G --> G3
-
 G1 --> H
 G2 --> H
 G3 --> H
 
 %% ---------- FINAL REPORT ----------
-H["📦 <b style='font-size:18px'>Final Structured JSON Report</b>"]
+H["📦 <b>Final Structured JSON Report</b>"]
 
-%% ---------- STYLES ----------
-style A1 fill:#dceeff,stroke:#003366,stroke-width:2px
-style A2 fill:#dceeff,stroke:#003366,stroke-width:2px
+%% ---------- HIGH‑CONTRAST STYLES ----------
+style A1 fill:#e5f0ff,stroke:#000,color:#000
+style A2 fill:#e5f0ff,stroke:#000,color:#000
 
-style B fill:#fff8d6,stroke:#a67c00,stroke-width:2px
-style C fill:#f2f2f2,stroke:#444,stroke-width:2px
+style B fill:#fff2b2,stroke:#000,color:#000
+style C fill:#ffffff,stroke:#000,color:#000
+style D fill:#c8ffd1,stroke:#000,color:#000
+style E fill:#c8ffd1,stroke:#000,color:#000
+style F fill:#c8ffd1,stroke:#000,color:#000
 
-style D fill:#dbffdb,stroke:#2d662d,stroke-width:2px
-style E fill:#dbffdb,stroke:#2d662d,stroke-width:2px
-style F fill:#dbffdb,stroke:#2d662d,stroke-width:2px
+style G fill:#ffe7b8,stroke:#000,color:#000
+style G1 fill:#fff5cc,stroke:#000,color:#000
+style G2 fill:#fff5cc,stroke:#000,color:#000
+style G3 fill:#fff5cc,stroke:#000,color:#000
 
-style G fill:#ffeeba,stroke:#8a6d3b,stroke-width:2px
-style G1 fill:#fff3cd,stroke:#7d6608,stroke-width:2px
-style G2 fill:#fff3cd,stroke:#7d6608,stroke-width:2px
-style G3 fill:#fff3cd,stroke:#7d6608,stroke-width:2px
-
-style H fill:#d4edda,stroke:#155724,stroke-width:2px
+style H fill:#d2f5d0,stroke:#000,color:#000
 
 ```
 
